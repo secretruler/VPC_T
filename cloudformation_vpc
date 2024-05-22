@@ -1,0 +1,240 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: This is created by Akhil to create Wipro VPC
+
+
+Resources:
+  WiproVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 192.173.0.0/16
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      Tags:
+       - Key: Name
+         Value: wipro-vpc
+
+
+  WiproSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref WiproVPC
+      CidrBlock: 192.173.0.0/24
+      AvailabilityZone: "ap-south-1a"
+      MapPublicIpOnLaunch: 'true'
+      Tags:
+      - Key: Name
+        Value: wipro-web-subnet-vpc
+    
+  DataSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref WiproVPC
+      CidrBlock: 192.173.1.0/24
+      AvailabilityZone: "ap-south-1b"
+      MapPublicIpOnLaunch: 'false'
+      Tags:
+      - Key: Name
+        Value: wipro-database-subnet-vpc
+
+
+  WiproInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: Name
+        Value: wipro-gateway
+
+
+  WiproAttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId:
+        Ref: WiproVPC
+      InternetGatewayId:
+        Ref: WiproInternetGateway
+
+  WebRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:  
+        Ref: WiproVPC
+      Tags:
+      - Key: Name
+        Value: Web-route
+
+  DataRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:  
+        Ref: WiproVPC
+      Tags:
+      - Key: Name
+        Value: Data-route
+
+  mywebyRoute:
+    Type: AWS::EC2::Route
+    DependsOn: WiproAttachGateway
+    Properties:
+       RouteTableId:
+         Ref: WebRouteTable
+       DestinationCidrBlock: 0.0.0.0/0
+       GatewayId:
+         Ref: WiproInternetGateway
+
+
+  WiprowebSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+     SubnetId:
+       Ref: WiproSubnet
+     RouteTableId:
+       Ref: WebRouteTable
+
+  WiprodataSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: DataSubnet
+      RouteTableId:
+        Ref: DataRouteTable
+  
+
+
+
+
+  WiprowebNetworkAcl:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId:
+        Ref: WiproVPC
+      Tags:
+      - Key: Name
+        Value: web-acl
+
+
+
+  InboundRule:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+       NetworkAclId:
+         Ref: WiprowebNetworkAcl
+       RuleNumber: 100
+       Protocol: 6
+       RuleAction: allow
+       CidrBlock: 0.0.0.0/0
+       PortRange:
+         From: 0
+         To: 65535
+  OutboundRule:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+       NetworkAclId:
+         Ref: WiprowebNetworkAcl
+       RuleNumber: 100
+       Protocol: -1
+       Egress: true
+       RuleAction: allow
+       CidrBlock: 0.0.0.0/0
+
+  WebSubnetNetworkAclAssociation:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId:
+        Ref: WiproSubnet
+      NetworkAclId:
+        Ref: WiprowebNetworkAcl
+
+  WiprodbNetworkAcl:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId:
+        Ref: WiproVPC
+      Tags:
+      - Key: Name
+        Value: DB-acl
+
+  InboundRule:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+       NetworkAclId:
+         Ref: WiprodbNetworkAcl
+       RuleNumber: 100
+       Protocol: 6
+       RuleAction: allow
+       CidrBlock: 0.0.0.0/0
+       PortRange:
+         From: 0
+         To: 65535
+  OutboundRule:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+       NetworkAclId:
+         Ref: WiprodbNetworkAcl
+       RuleNumber: 100
+       Protocol: -1
+       Egress: true
+       RuleAction: allow
+       CidrBlock: 0.0.0.0/0
+
+
+  DataSubnetNetworkAclAssociation:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId:
+        Ref: DataSubnet
+      NetworkAclId:
+        Ref: WiprodbNetworkAcl
+
+
+
+  InstanceWebSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow all traffic
+      VpcId: !Ref WiproVPC
+      SecurityGroupIngress:
+        - IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 0.0.0.0/0
+
+      Tags:
+      - Key: Name
+        Value: Wipro-web-sg
+
+
+  InstanceDBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow all traffic
+      VpcId: !Ref WiproVPC
+      SecurityGroupIngress:
+        - IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 192.173.0.0/16
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 0.0.0.0/0
+
+      Tags:
+      - Key: Name
+        Value: Wipro-db-sg
+
+
+  MyEC2Instance: 
+    Type: AWS::EC2::Instance
+    Properties: 
+       ImageId: "ami-0f58b397bc5c1f2e8"
+       InstanceType : "t2.small"
+       KeyName: "aws830"
+       SubnetId: !Ref WiproSubnet
+       SecurityGroupIds: 
+         - !Ref InstanceWebSecurityGroup
